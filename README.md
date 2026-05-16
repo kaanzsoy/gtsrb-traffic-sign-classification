@@ -1,6 +1,6 @@
 # Traffic Sign Classification under Resource Constraints
 
-This repository includes the code, trained models, result files, and report materials for our traffic sign classification project on the **German Traffic Sign Recognition Benchmark (GTSRB) dataset**.
+This repository includes the code, trained models, result files, and report materials for our traffic sign classification project on the **German Traffic Sign Recognition Benchmark (GTSRB)**.
 
 The project investigates how different model choices and quantization formats affect traffic sign classification under resource constraints. Instead of focusing only on **accuracy**, we also evaluate **calibration, model size, inference latency, and class-wise behavior**.
 
@@ -46,6 +46,8 @@ PROJECT/
 │   ├── int8_confusion_increase_vs_fp32.csv
 │   └── int8_top_confusions_by_worst_classes.csv
 │
+├── report/
+│   
 └── README.md
 ```
 
@@ -72,4 +74,125 @@ dataset/
 ```
 The notebook assumes that the dataset folder is located at the project root.
 
+## Implemented Experiments
+
+The current repository mainly includes the **MobileNetV2** implementation in `notebooks/MobileNetV2.ipynb`.
+
+The notebook covers:
+- FP32 MobileNetV2 training
+- ROI-based preprocessing
+- INT8 post-training quantization
+- FP16 quantization
+- Accuracy, ECE, model size, and latency evaluation
+- Class-wise and confusion-based analysis
+
+**ResNet-50** experiments are discussed in the project report. The corresponding source files may be added separately.
+
+## How to Run
+
+### 1. Clone the repository
+
+```bash
+git clone <repository-url>
+cd <repository-name>
+```
+
+### 2. Create and activate a virtual environment
+
+```bash
+python -m venv ml_env
+source ml_env/bin/activate
+```
+
+For Windows:
+
+```bash
+ml_env\Scripts\activate
+```
+
+### 3. Install required packages
+
+```bash
+pip install numpy pandas matplotlib scikit-learn tensorflow jupyter
+```
+
+### 4. Prepare the dataset
+
+The dataset is not included in this repository because of its file size. Download the GTSRB dataset from Kaggle:
+
+https://www.kaggle.com/datasets/meowmeowmeowmeowmeow/gtsrb-german-traffic-sign
+
+After downloading, place the dataset inside the `dataset/` folder using the following structure:
+
+```text
+dataset/
+├── Train/
+├── Test/
+├── Meta/
+├── Train.csv
+├── Test.csv
+└── Meta.csv
+```
+
+The `dataset/` folder is excluded from Git tracking, so it must be added manually before running the notebook.
+
+### 5. Run the notebook
+
+```bash
+jupyter notebook notebooks/MobileNetV2.ipynb
+```
+
+Then run the notebook cells in order.
+
+The notebook saves trained and converted models under:
+
+```text
+models/
+```
+
+It also saves confusion analysis outputs under:
+
+```text
+results/
+```
+
+## Output Files
+
+The following model files are included or generated during the MobileNetV2 workflow:
+
+```text
+mobilenetv2_roi_fp32_best.keras
+mobilenetv2_roi_int8.tflite
+mobilenetv2_roi_int8_large_rep.tflite
+mobilenetv2_roi_fp16.tflite
+```
+
+The following result files are generated for INT8 class-wise confusion analysis:
+
+```text
+int8_top_confusions_by_worst_classes.csv
+int8_confusion_increase_vs_fp32.csv
+```
+
+## Notes on Reproducibility
+
+The `dataset/` folder and the local virtual environment folder `ml_env/` are excluded from Git tracking. The dataset should be downloaded manually from Kaggle, and the environment should be recreated using the installation steps above.
+
+Latency measurements may vary depending on hardware, TensorFlow runtime, and numerical format support. Therefore, inference time values should be interpreted with the experimental setup in mind.
+
+## Report
+
+The LaTeX report files are included under the `report/` directory.
+
+The directory contains the first-stage and second-stage project reports, including the LaTeX source files, bibliography files, ICLR style files, and compiled PDF outputs.
+
+## Authors
+
+Hayrettin Kaan Ozsoy<br>
+Hacettepe University<br>
+hkaanozsoy26@hacettepe.edu.tr
+
+Ahmet Baspinar<br>
+Hacettepe University<br>
+ahmetbaspinar26@hacettepe.edu.tr
 

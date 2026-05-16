@@ -15,3 +15,11 @@ __pycache__/
 .env
 
 dataset/
+
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk

@@ -1,0 +1,329 @@
+\documentclass{article} % For LaTeX2e
+\usepackage{iclr2026_conference,times}
+
+% Optional math commands from https://github.com/goodfeli/dlbook_notation.
+% Comment out the next line if math_commands.tex is not available.
+% \input{math_commands.tex}
+
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{graphicx}
+
+\title{Traffic Sign Classification Under Resource Constraints: 
+A Second-Stage Study on Quantization, Efficiency, and Calibration}
+
+\author{
+\hspace*{-0.25em}Hayrettin Kaan Özsoy \\
+Hacettepe University \\
+\texttt{hkaanozsoy26@hacettepe.edu.tr}
+\And
+Ahmet Başpınar \\
+Hacettepe University \\
+\texttt{ahmetbaspinar26@hacettepe.edu.tr}
+}
+
+\iclrfinalcopy % Uncomment for camera-ready version, but NOT for submission.
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Traffic sign classification is a widely studied problem, yet practical deployment requires more than high accuracy. In resource-constrained settings, model size, inference time, and confidence reliability also become important. In this second-stage report, we extend our previous ResNet-50 analysis and introduce MobileNetV2 as a lightweight alternative on the German Traffic Sign Recognition Benchmark (GTSRB). Models are evaluated using accuracy, Expected Calibration Error (ECE), model size, and inference latency. The new ResNet-50 experiment shows that additional training does not necessarily improve INT8 quantized performance, as the quantized model still suffers from a substantial accuracy loss. For MobileNetV2, FP16 quantization preserves almost the same accuracy and calibration as FP32 while greatly reducing model size. In contrast, INT8 post-training quantization provides stronger compression and faster inference, but leads to a severe drop in accuracy and worse calibration. Overall, the results show that quantization should be evaluated as a trade-off rather than a direct improvement, and that traffic sign classifiers under resource constraints require joint consideration of accuracy, efficiency, and reliability.
+\end{abstract}
+
+\section{Introduction}
+
+Traffic sign classification is a central task in intelligent transportation systems and driver assistance applications. Although the problem has been widely studied and modern deep models can achieve high accuracy on benchmark datasets, practical deployment requires a broader evaluation. A model used in a real system should not only classify signs correctly, but also run efficiently on limited hardware and provide confidence scores that are meaningful.
+
+The German Traffic Sign Recognition Benchmark (GTSRB) is well suited for this setting because it contains more than 50,000 images from 43 traffic sign classes with variations in scale, illumination, viewpoint, and image quality \citep{stallkamp2011gtsrb}. These variations make the dataset closer to real driving conditions than a clean image classification setup. Moreover, traffic signs are safety-relevant objects. A wrong prediction is problematic by itself, but a wrong prediction made with very high confidence is even more concerning. Therefore, confidence reliability should be considered together with accuracy.
+
+For this reason, calibration is one of the main evaluation aspects in this study. A calibrated model should produce confidence scores that reflect its actual correctness. For instance, if a model predicts a group of samples with around 90\% confidence, roughly 90\% of those predictions should be correct. However, modern neural networks are often miscalibrated and may remain overconfident even when they are wrong \citep{guo2017calibration}. In traffic sign recognition, this matters because a downstream system may use confidence scores to decide whether to accept a prediction or handle it more cautiously.
+
+The other main aspect of the project is resource-constrained deployment. Large models may perform well, but they are not always suitable for embedded or real-time use. Model size and inference latency therefore become important alongside accuracy. Quantization is a common approach for reducing memory and computational cost by using lower numerical precision. Post-training quantization is especially practical because it can be applied after training with limited additional calibration effort \citep{hubara2021ptq}. Still, quantization should not be treated as a guaranteed improvement, since it may reduce size and latency while harming accuracy or calibration.
+
+In the first stage of the project, we evaluated a ResNet-50 model and its INT8 post-training quantized version. The results showed clear gains in size and latency, but also a notable accuracy drop. In this second stage, we further examine the ResNet-50 quantized model and introduce MobileNetV2 as a lightweight alternative. We compare FP32, INT8, and FP16 versions to better understand how architecture and precision affect the trade-off between accuracy, calibration, model size, and inference latency.
+
+Overall, this report does not aim to select a model only by the highest accuracy. Instead, it evaluates traffic sign classification as a deployment-oriented problem, where efficiency and confidence reliability are as important as predictive performance.
+
+\section{Related Work}
+
+Traffic sign recognition has been studied extensively with both traditional machine learning and deep learning methods. The GTSRB dataset introduced by \citet{stallkamp2011gtsrb} remains one of the main benchmarks for this task. Recent surveys, including \citet{lim2023review}, show that deep learning methods generally achieve stronger recognition performance, while also pointing to the continued need for robust and practical traffic sign recognition systems.
+
+For resource-constrained settings, lightweight traffic sign classifiers are particularly relevant. \citet{wong2018micronnet} proposed MicronNet, a compact model for real-time embedded traffic sign classification, and \citet{zaibi2021lenet} introduced an enhanced LeNet-5-based model with a small number of trainable parameters. More recent studies follow the same direction: \citet{khan2023lightweightcnn} proposed a lightweight CNN for urban traffic sign recognition and compared it with models such as MobileNet and ResNet, while \citet{rachmadi2018lspcnn} introduced a lightweight spatial pyramid convolutional network. Together, these works show that lightweight design is not only about reducing model size, but can also be a competitive modeling choice for traffic sign recognition.
+
+Calibration is another important part of this study. \citet{guo2017calibration} showed that modern neural networks can be poorly calibrated even when their accuracy is high. This matters in traffic sign recognition because a classifier should not only predict the correct sign, but also express uncertainty in a reliable way. Expected Calibration Error (ECE) provides a practical measure of the gap between predicted confidence and actual correctness, which gives us a reliability dimension that accuracy alone cannot capture.
+
+Quantization is widely used to reduce memory and computational cost in deployment-oriented settings. \citet{hubara2021ptq} showed that post-training quantization can work with small calibration sets, which makes it attractive when full retraining is not practical. Earlier work such as \citet{park2017weightedentropy} also supports quantization as a way to reduce inference cost for mobile and embedded systems. However, low-precision inference is not automatically safe; its effect depends on the model architecture, precision level, and quantization strategy.
+
+This is especially relevant for MobileNet-style architectures. Since MobileNets are already compact and rely on depthwise separable convolutions and bottleneck structures, they can be sensitive to quantization noise. \citet{kulkarni2021qfmobile} proposed Quantization Friendly MobileNet for embedded vision applications, while \citet{dinh2020subtensor} argued that MobileNet models are not always well suited to standard quantization and proposed subtensor quantization to reduce the gap between floating-point and 8-bit inference.
+
+More general compression studies make a similar point. Pruning and quantization can be combined to reduce model size and computation \citep{tung2018clipq}, and adaptive INT8 methods show that activation or gradient distributions are important for successful low-precision training and deployment \citep{zhao2021distributionadaptive}. Although our experiments use post-training quantization rather than quantization-aware training, these studies help explain why a simple INT8 conversion may fail for some models.
+
+Overall, prior work suggests that traffic sign classifiers should not be evaluated only by accuracy. Lightweight design, calibration, model size, latency, and quantization behavior all matter for deployment. Our study follows this view by jointly evaluating accuracy, ECE, model size, inference latency, and class-wise behavior.
+
+
+\section{Method}
+
+\subsection{Dataset}
+
+All experiments are conducted on the German Traffic Sign Recognition Benchmark (GTSRB), which contains more than 50,000 images from 43 traffic sign classes. The dataset includes realistic variations in scale, illumination, viewpoint, and image quality, making it a suitable benchmark for evaluating traffic sign classifiers beyond clean image classification settings \citep{stallkamp2011gtsrb}.
+
+GTSRB is also well aligned with the motivation of this project. Traffic sign recognition is a practical task where deployment on embedded, edge, or latency-sensitive systems is a realistic concern. At the same time, traffic signs are safety-relevant objects, so the reliability of the model's confidence estimates matters. A wrong but uncertain prediction may still be treated cautiously by a downstream system, whereas an overconfident wrong prediction can be more problematic.
+
+\subsection{Evaluation Metrics}
+
+We evaluate all models using four main metrics.
+
+\textbf{Accuracy} is used as the main predictive performance metric. It measures the percentage of correctly classified traffic sign images.
+
+\textbf{Expected Calibration Error (ECE)} is used to measure calibration quality. ECE compares predicted confidence with empirical correctness over confidence bins. Lower ECE indicates better calibration \citep{guo2017calibration}. In this project, ECE is important because a traffic sign classifier should not only be correct, but should also give confidence scores that reflect its actual reliability.
+
+\textbf{Model size} is reported in megabytes. This reflects storage cost and is important for deployment on limited hardware.
+
+\textbf{Inference latency} is reported in milliseconds per image. This reflects prediction speed and is important for real-time or near-real-time use.
+
+These metrics are considered together because improvement in one metric may come with degradation in another. For example, INT8 quantization may reduce model size and latency, but it may also reduce accuracy or worsen calibration.
+
+\subsection{ResNet-50 Experiments}
+
+The first stage of the project used ResNet-50 as a high-capacity baseline. Although ResNet-50 is not a lightweight architecture, it provided a useful starting point for observing the effect of post-training quantization. In the first report, the FP32 ResNet-50 model was compared with its INT8 post-training quantized version. The results showed that INT8 quantization reduced model size and inference latency, but also caused a clear drop in accuracy.
+
+Following the feedback, we attempted to improve the quantized ResNet-50 result by increasing the training effort before applying quantization again. The purpose of this experiment was to see whether a more extensively trained floating-point model would lead to better INT8 quantized performance. Since the main target of this step was the quantized model, the new result is reported as an additional INT8 experiment and compared with the previous ResNet-50 results.
+
+\subsection{MobileNetV2 Experiments}
+
+In the second stage, we introduced MobileNetV2 as a lightweight architecture. This choice is more aligned with the resource-constrained setting because MobileNetV2 is designed to reduce computational cost using depthwise separable convolutions and compact bottleneck structures.
+
+The MobileNetV2 training pipeline consisted of two stages. First, the pretrained backbone was frozen and only the classifier head was trained. The classifier head included global average pooling, dropout, and a dense softmax layer for 43 classes. This stage allowed the model to learn traffic sign classification using pretrained visual features.
+
+Second, fine-tuning was applied by unfreezing later layers of the backbone and training them with a smaller learning rate. The motivation was to adapt higher-level features to the GTSRB domain while preserving the general low-level features learned from ImageNet.
+
+We also applied region-of-interest (ROI) preprocessing. The purpose of ROI preprocessing was to reduce irrelevant background content and help the model focus more directly on the traffic sign region. This step improved both accuracy and calibration in the FP32 MobileNetV2 model.
+
+After training the FP32 MobileNetV2 model, we evaluated two lower-precision variants: INT8 post-training quantization and FP16 quantization. INT8 represents a more aggressive compression setting, while FP16 provides a less aggressive reduction in numerical precision.
+
+\section{Results}
+
+\subsection{ResNet-50 Quantization Results}
+
+Table~\ref{tab:resnet_results} summarizes the ResNet-50 results from the first report together with the additional INT8 experiment conducted in the second stage.
+
+\begin{table}[t]
+\centering
+\caption{ResNet-50 results before and after INT8 post-training quantization. The last row shows the additional INT8 experiment after increasing the training effort.}
+\label{tab:resnet_results}
+\begin{tabular}{lcccc}
+\toprule
+Model & Accuracy (\%) & ECE & Size (MB) & Inference (ms/image) \\
+\midrule
+FP32 ResNet-50 & 80.90 & 0.1922 & 270.56 & 121.42 \\
+INT8 ResNet-50 & 70.20 & 0.0967 & 23.15 & 67.67 \\
+INT8 ResNet-50, after additional training & 62.80 & 0.2741 & 23.17 & 0.94 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+In the first report, INT8 post-training quantization reduced the ResNet-50 model size from 270.56 MB to 23.15 MB and decreased inference time from 121.42 ms to 67.67 ms per image. However, accuracy dropped from 80.90\% to 70.20\%. This showed a clear trade-off: the quantized model became smaller and faster, but lost predictive performance. Its ECE also decreased from 0.1922 to 0.0967, suggesting better calibration in that specific experiment.
+
+In the second-stage experiment, increasing the training effort before quantization did not improve the INT8 ResNet-50 result. The new quantized model achieved 62.80\% accuracy, which is lower than the previous INT8 result of 70.20\%. Its ECE also increased to 0.2741, indicating worse calibration than both the original FP32 model and the first INT8 quantized model.
+
+The model size remained almost the same as the previous INT8 model. The reported inference time was 0.94 ms per image, which is much lower than the previous measurement. Since this difference may be affected by timing protocol, runtime, or hardware-related factors, this value should be verified under a consistent latency measurement setup in the final report.
+
+Overall, this additional ResNet-50 experiment did not solve the accuracy loss caused by INT8 quantization. Instead, it suggests that simply increasing training effort is not enough to obtain a better quantized model. Quantized performance must be evaluated directly, since a stronger or longer-trained floating-point model does not necessarily remain robust after INT8 conversion.
+
+\subsection{MobileNetV2 FP32 Baseline}
+
+MobileNetV2 produced a stronger lightweight baseline than ResNet-50 in the current experiments. After head training and fine-tuning, the model achieved high validation accuracy, but the test results were lower, indicating that the official test set remained more challenging. On the test set, the initial FP32 MobileNetV2 model reached 86.66\% accuracy with an ECE of 0.0925.
+
+After ROI preprocessing, the FP32 MobileNetV2 test accuracy increased to 91.09\%, and ECE decreased to 0.0576. This indicates that ROI preprocessing improved both predictive performance and calibration. The improvement suggests that reducing irrelevant background information helped the model focus on the traffic sign itself.
+
+\begin{table}[t]
+\centering
+\caption{Effect of ROI preprocessing on FP32 MobileNetV2.}
+\label{tab:roi_effect}
+\begin{tabular}{lcc}
+\toprule
+Model & Accuracy (\%) & ECE \\
+\midrule
+MobileNetV2 FP32 without ROI & 86.66 & 0.0925 \\
+MobileNetV2 FP32 with ROI & 91.09 & 0.0576 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The final FP32 MobileNetV2 model with ROI preprocessing had a model size of 24.05 MB and an inference latency of 1.07 ms per image. This is already much smaller and faster than ResNet-50, showing that architecture choice is an important part of resource-constrained modeling.
+
+\subsection{MobileNetV2 Quantization Results}
+
+Table~\ref{tab:mobile_quant} compares the FP32, INT8, and FP16 versions of the MobileNetV2 ROI model.
+
+\begin{table}[t]
+\centering
+\caption{MobileNetV2 ROI results under different precision settings.}
+\label{tab:mobile_quant}
+\begin{tabular}{lcccc}
+\toprule
+Model & Accuracy (\%) & ECE & Size (MB) & Inference (ms/image) \\
+\midrule
+MobileNetV2 ROI FP32 & 91.09 & 0.0576 & 24.05 & 1.07 \\
+MobileNetV2 ROI INT8 PTQ & 65.22 & 0.2437 & 2.66 & 0.39 \\
+MobileNetV2 ROI FP16 & 90.93 & 0.0589 & 4.40 & 1.36 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The INT8 post-training quantized MobileNetV2 model achieved the smallest model size and the fastest inference time. Its size decreased from 24.05 MB to 2.66 MB, and inference latency decreased from 1.07 ms to 0.39 ms per image. However, this efficiency gain came with a severe accuracy drop. Accuracy decreased from 91.09\% to 65.22\%, and ECE worsened from 0.0576 to 0.2437.
+
+This result shows that INT8 PTQ is not reliable for the current MobileNetV2 configuration. Although it provides strong compression and speed improvement, it significantly damages both prediction quality and calibration. This is consistent with prior observations that MobileNet-style architectures may be sensitive to standard quantization methods due to their compact structure and depthwise separable convolutions \citep{kulkarni2021qfmobile,dinh2020subtensor}.
+
+In contrast, FP16 quantization produced a much better trade-off. The FP16 model achieved 90.93\% accuracy, which is almost identical to the FP32 accuracy of 91.09\%. Its ECE was 0.0589, also very close to the FP32 ECE of 0.0576. At the same time, model size decreased substantially from 24.05 MB to 4.40 MB. The only drawback was that inference latency increased slightly from 1.07 ms to 1.36 ms per image. This may be related to limited FP16 acceleration in the current hardware or runtime environment.
+
+Overall, FP16 appears to be the most balanced MobileNetV2 setting in the current experiments. It preserves accuracy and calibration while substantially reducing model size. INT8, on the other hand, gives stronger compression and faster inference but causes too much degradation in predictive reliability.
+
+\subsection{Class-wise Quantization Behavior}
+
+\begin{table}[t]
+\centering
+\caption{Largest class-wise accuracy drops after INT8 and FP16 quantization for MobileNetV2. Drops are computed relative to the FP32 MobileNetV2 ROI model.}
+\label{tab:classwise_drops}
+\small
+\begin{tabular}{cccc|cccc}
+\toprule
+\multicolumn{4}{c|}{INT8 largest drops} & \multicolumn{4}{c}{FP16 largest drops} \\
+\cmidrule(lr){1-4} \cmidrule(lr){5-8}
+Class & Support & FP32 Acc. & Drop & Class & Support & FP32 Acc. & Drop \\
+\midrule
+32 & 60  & 1.000 & 0.900 & 0  & 60  & 0.433 & 0.033 \\
+42 & 90  & 0.889 & 0.889 & 30 & 150 & 0.753 & 0.020 \\
+6  & 150 & 0.867 & 0.827 & 37 & 60  & 0.383 & 0.017 \\
+4  & 660 & 0.935 & 0.724 & 20 & 90  & 0.611 & 0.011 \\
+8  & 450 & 0.889 & 0.687 & 25 & 480 & 0.942 & 0.006 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+We also examined whether quantization affects all traffic sign classes equally. Table~\ref{tab:classwise_drops} reports the largest class-wise accuracy drops after INT8 and FP16 quantization, using the FP32 MobileNetV2 ROI model as the reference.
+
+The results show that INT8 quantization does not simply reduce performance uniformly. Instead, some classes suffer severe degradation. For example, class 32 drops from 100.0\% accuracy to 10.0\%, and class 42 drops from 88.9\% to 0.0\%. Large drops are also observed for classes 6, 4, and 8. This indicates that the INT8 model becomes especially unreliable for certain traffic sign categories, even though the average accuracy alone already shows a large decline.
+
+FP16 shows a much more stable pattern. The largest FP16 class-wise drop is only 0.033, and the next largest drops remain close to zero. This supports the earlier aggregate results: FP16 preserves the behavior of the FP32 model much better than INT8, not only in terms of overall accuracy and ECE, but also at the class level.
+
+This analysis is important because average accuracy can hide uneven failures across classes. In traffic sign classification, such class-specific degradation matters, since different signs may carry different driving meanings and risks. Therefore, compression should not be evaluated only by model size or average accuracy; class-wise behavior also needs to be checked.
+
+\section{Discussion}
+
+The second-stage experiments clarify the main trade-offs in the project.
+
+The additional ResNet-50 experiment shows that increasing the training effort before quantization does not necessarily improve INT8 performance. The new INT8 model achieved lower accuracy and worse ECE than the previous INT8 ResNet-50 result. This suggests that quantized performance cannot be inferred only from longer or stronger floating-point training. Since quantization changes the numerical representation of the model, improving INT8 results likely requires more targeted strategies, such as better representative calibration data, quantization-aware training, or architecture-level changes.
+
+MobileNetV2 provides a stronger direction for the resource-constrained setting. Compared with ResNet-50, it is much smaller and faster while achieving better test accuracy after ROI preprocessing. This suggests that architecture choice should be considered before applying aggressive compression. In some cases, starting from a lightweight model may be more effective than heavily compressing a large one.
+
+The MobileNetV2 results also show that the quantization format matters. INT8 PTQ achieved the smallest model size and fastest inference, but caused a severe drop in accuracy and worsened calibration. FP16, on the other hand, preserved almost the same accuracy and ECE as FP32 while still reducing model size substantially. Therefore, lower precision should not automatically be treated as the better deployment choice. The useful trade-off depends on the model, hardware support, and reliability requirements.
+
+The poor INT8 result is also consistent with prior work on MobileNet-style architectures. Studies on quantization-friendly MobileNet variants and subtensor quantization suggest that these models are not always robust to standard quantization methods \citep{kulkarni2021qfmobile,dinh2020subtensor}. Our results support this observation in the GTSRB setting. The degradation appears to reflect not only model compactness, but also the interaction between aggressive quantization, fine-tuned feature distributions, and architecture-specific sensitivity.
+
+Calibration remains an important part of this analysis. The FP32 and FP16 MobileNetV2 models produced low ECE values, while the INT8 model became both less accurate and less reliable in its confidence estimates. In traffic sign recognition, this matters because an overconfident wrong prediction can be more problematic than an uncertain one.
+
+Finally, the class-wise results show that quantization can damage some classes much more than others. This supports the need to look beyond aggregate accuracy. In the final stage, confusion matrices, per-class recall, reliability diagrams, and possibly adaptive or quantization-aware methods can help identify and reduce these class-specific failures \citep{zhao2021distributionadaptive}.
+
+\section{Limitations}
+
+This report has several limitations.
+
+First, the additional ResNet-50 experiment should be interpreted as an improvement attempt rather than a fully new benchmark. In the final report, all ResNet-50 variants should be evaluated under the same test split, metric computation, and latency measurement procedure.
+
+Second, the INT8 post-training quantization results may depend on the representative dataset used during calibration. Although increasing the representative set did not substantially improve MobileNetV2 INT8 performance in our current trials, further controlled experiments are needed to separate calibration-set effects from architecture-level quantization sensitivity.
+
+Third, latency measurements depend on hardware, runtime, and numerical format support. The FP16 model reduced model size substantially, but its latency was slightly higher than FP32 in our setup. This likely reflects limited FP16 acceleration in the current environment rather than a general weakness of FP16.
+
+Fourth, calibration is currently evaluated only with ECE. Future work should include reliability diagrams and possibly post-processing methods such as temperature scaling to better analyze confidence behavior.
+
+Finally, the class-wise analysis focuses on accuracy drops. In the final report, this should be expanded with per-class precision, recall, confusion matrices, and examples of visually similar classes.
+
+\section{Conclusion}
+
+This second-stage report extended the initial ResNet-50 quantization analysis and introduced MobileNetV2 as a lightweight alternative for traffic sign classification under resource constraints. The additional ResNet-50 experiment showed that increasing the training effort before quantization did not improve the INT8 result. The new quantized model achieved lower accuracy and worse calibration than the previous INT8 version, suggesting that the performance loss cannot be addressed simply by training the floating-point model for longer.
+
+The MobileNetV2 experiments gave a clearer view of the accuracy--efficiency trade-off. With ROI preprocessing, the FP32 MobileNetV2 model achieved strong test accuracy and low ECE while being much smaller and faster than the ResNet-50 baseline. INT8 post-training quantization further reduced model size and latency, but this came at a large cost in accuracy and calibration. FP16 quantization, on the other hand, preserved almost the same accuracy and ECE as FP32 while substantially reducing model size.
+
+Overall, these results support the main motivation of the project: traffic sign classifiers should not be evaluated only by accuracy. Under resource constraints, model size, inference latency, calibration, and class-wise behavior also matter. Among the tested configurations, FP16 MobileNetV2 currently provides the most balanced result, while INT8 PTQ appears too aggressive for the current MobileNetV2 setup.
+
+Based on these findings, the next step will be shaped around a more consistent final evaluation. This may include strengthening the class-wise analysis, verifying latency measurements under the same setup, and considering improved quantization or calibration strategies depending on the feedback received.
+
+\renewcommand{\refname}{}
+\section{References}
+\vspace{-0.6em}
+\small
+\begin{thebibliography}{99}
+
+\bibitem[Dinh et~al.(2020)Dinh, Melnikov, Daskalopoulos, and Chai]{dinh2020subtensor}
+Thu Dinh, Andrey Melnikov, Vasilios Daskalopoulos, and Sek Chai.
+\newblock Subtensor quantization for mobilenets.
+\newblock In \emph{Computer Vision -- ECCV 2020 Workshops}, pp. 126--130, 2020.
+
+\bibitem[Guo et~al.(2017)Guo, Pleiss, Sun, and Weinberger]{guo2017calibration}
+Chuan Guo, Geoff Pleiss, Yu Sun, and Kilian Q. Weinberger.
+\newblock On calibration of modern neural networks.
+\newblock In \emph{Proceedings of the 34th International Conference on Machine Learning}, 2017.
+
+\bibitem[Hubara et~al.(2021)Hubara, Nahshan, Hanani, Banner, and Soudry]{hubara2021ptq}
+Itay Hubara, Yury Nahshan, Yair Hanani, Ron Banner, and Daniel Soudry.
+\newblock Accurate post training quantization with small calibration sets.
+\newblock In \emph{Proceedings of the 38th International Conference on Machine Learning}, 2021.
+
+\bibitem[Khan et~al.(2023)Khan, Park, and Chae]{khan2023lightweightcnn}
+Muneeb A. Khan, Heemin Park, and Jinseok Chae.
+\newblock A lightweight convolutional neural network (CNN) architecture for traffic sign recognition in urban road networks.
+\newblock \emph{Electronics}, 12(8):1802, 2023.
+
+\bibitem[Kulkarni et~al.(2021)Kulkarni, Meena, Gurlahosur, and Bhogar]{kulkarni2021qfmobile}
+Uday Kulkarni, Meena S. M., Sunil V. Gurlahosur, and Gopal Bhogar.
+\newblock Quantization friendly MobileNet (QF-MobileNet) architecture for vision based applications on embedded platforms.
+\newblock \emph{Neural Networks}, 136:28--39, 2021.
+
+\bibitem[Lim et~al.(2023)Lim, Lee, Lim, Ong, Alqahtani, and Ali]{lim2023review}
+Xin Roy Lim, Chin Poo Lee, Kian Ming Lim, Thian Song Ong, Ali Alqahtani, and Mohammed Ali.
+\newblock Recent advances in traffic sign recognition: Approaches and datasets.
+\newblock \emph{Sensors}, 23(10):4674, 2023.
+
+\bibitem[Park et~al.(2017)Park, Ahn, and Yoo]{park2017weightedentropy}
+Eunhyeok Park, Junwhan Ahn, and Sungjoo Yoo.
+\newblock Weighted-entropy-based quantization for deep neural networks.
+\newblock In \emph{Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition}, pp. 7197--7205, 2017.
+
+\bibitem[Rachmadi et~al.(2018)Rachmadi, Koutaki, and Ogata]{rachmadi2018lspcnn}
+Reza Fuad Rachmadi, Gou Koutaki, and Kohichi Ogata.
+\newblock Lightweight spatial pyramid convolutional neural network for traffic sign classification.
+\newblock In \emph{2018 Indonesian Association for Pattern Recognition International Conference (INAPR)}, pp. 23--28, 2018.
+
+\bibitem[Stallkamp et~al.(2011)Stallkamp, Schlipsing, Salmen, and Igel]{stallkamp2011gtsrb}
+Johannes Stallkamp, Marc Schlipsing, Jan Salmen, and Christian Igel.
+\newblock The German Traffic Sign Recognition Benchmark: A multi-class classification competition.
+\newblock In \emph{Proceedings of the International Joint Conference on Neural Networks}, 2011.
+
+\bibitem[Tung and Mori(2018)]{tung2018clipq}
+Frederick Tung and Greg Mori.
+\newblock CLIP-Q: Deep network compression learning by in-parallel pruning-quantization.
+\newblock In \emph{Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition}, 2018.
+
+\bibitem[Wong et~al.(2018)Wong, Shafiee, and St. Jules]{wong2018micronnet}
+Alexander Wong, Mohammad Javad Shafiee, and Michael St. Jules.
+\newblock $\mu$Net: A highly compact deep convolutional neural network architecture for real-time embedded traffic sign classification.
+\newblock \emph{IEEE Access}, 2018.
+
+\bibitem[Zaibi et~al.(2021)Zaibi, Ladgham, and Sakly]{zaibi2021lenet}
+Ameur Zaibi, Anis Ladgham, and Anis Sakly.
+\newblock A lightweight model for traffic sign classification based on enhanced LeNet-5 network.
+\newblock \emph{Journal of Sensors}, 2021.
+
+\bibitem[Zhao et~al.(2021)Zhao, Huang, Pan, Li, Zhang, Gu, and Xu]{zhao2021distributionadaptive}
+Kang Zhao, Sida Huang, Pan Pan, Yinghan Li, Yingya Zhang, Zhenyu Gu, and Yinghui Xu.
+\newblock Distribution adaptive INT8 quantization for training CNNs.
+\newblock In \emph{Proceedings of the AAAI Conference on Artificial Intelligence}, 2021.
+
+\end{thebibliography}
+
+\end{document}

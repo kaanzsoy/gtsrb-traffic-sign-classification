@@ -1,0 +1,183 @@
+\documentclass{article} % For LaTeX2e
+\usepackage{iclr2026_conference,times}
+
+% Optional math commands from https://github.com/goodfeli/dlbook_notation.
+% Comment out the next line if math_commands.tex is not available.
+% \input{math_commands.tex}
+
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{graphicx}
+
+\title{Traffic Sign Classification Under Resource Constraints:\\
+A Preliminary Study on Quantization, \\ Efficiency, and Calibration}
+
+\author{
+\hspace*{-0.25em}Hayrettin Kaan Özsoy \\
+Hacettepe University \\
+\texttt{hkaanozsoy26@hacettepe.edu.tr}
+\And
+Ahmet Başpınar \\
+Hacettepe University \\
+\texttt{ahmetbaspinar26@hacettepe.edu.tr}
+}
+
+\iclrfinalcopy % Uncomment for camera-ready version, but NOT for submission.
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Traffic sign classification is an important component of intelligent transportation and driver assistance systems, but high classification accuracy alone is not sufficient for deployment in resource-constrained settings. In this preliminary report, we study traffic sign classification on the German Traffic Sign Recognition Benchmark (GTSRB) using a transfer-learning-based ResNet-50 baseline and its INT8 post-training quantized version. We evaluate both models in terms of accuracy, Expected Calibration Error (ECE), model size, and inference time. Our initial results show that quantization substantially improves efficiency, reducing model size from 270.56 MB to 23.15 MB and inference time from 121.42 ms to 67.67 ms per image, while decreasing accuracy from 80.90\% to 70.20\%. At the same time, ECE decreases from 0.1922 to 0.0967, indicating improved calibration. These findings highlight a clear trade-off between predictive performance, efficiency, and reliability, and motivate further experiments with lighter architectures.
+\end{abstract}
+
+\section{Introduction}
+
+Traffic sign classification is a core component of intelligent transportation systems and driver assistance applications. Despite recent progress in deep learning, the problem remains challenging in real-world conditions because traffic signs may vary significantly due to illumination changes, weather conditions, motion blur, partial occlusion, scale variation, and viewpoint differences. The German Traffic Sign Recognition Benchmark (GTSRB) was designed to reflect such variability and contains more than 50,000 images from 43 classes \citep{stallkamp2011gtsrb}.
+
+Although modern deep neural networks can achieve very high classification accuracy, accuracy alone is not sufficient for practical deployment. In embedded or real-time scenarios, model size and inference latency become critical, while prediction reliability is also important because highly accurate models may still produce poorly calibrated confidence estimates. \citet{guo2017calibration} show that modern neural networks are often miscalibrated, meaning that their predicted probabilities do not reliably reflect true correctness likelihoods.
+
+Motivated by this trade-off, this study evaluates traffic sign classification not only in terms of accuracy, but also with respect to calibration, model size, and inference time. As an initial baseline, a transfer-learning-based ResNet-50 model is trained on GTSRB, and post-training quantization is then applied to examine how lower-precision inference affects performance and efficiency. Post-training quantization is particularly attractive in deployment settings because it can be applied after training and usually requires only a small calibration set \citep{hubara2021ptq}.
+
+The aim of this first report is to establish the problem setting, define the evaluation criteria, and present preliminary findings from the floating-point baseline and its INT8 quantized version. Although the current scope is limited to a single architecture, the obtained results already reveal a clear trade-off between predictive performance, computational efficiency, and calibration behavior.
+
+\section{Related Work}
+
+Traffic sign recognition has been widely studied using both traditional machine learning and deep learning approaches. A recent survey by \citet{lim2023review} shows that deep learning methods generally outperform conventional approaches on large and complex datasets, while also highlighting the continued importance of datasets such as GTSRB in benchmarking recognition performance.
+
+Since this project focuses on resource-constrained settings, lightweight traffic sign classifiers are especially relevant. \citet{wong2018micronnet} proposed MicronNet, a compact network for embedded traffic sign classification that achieves 98.9\% accuracy on GTSRB with only about 0.51 million parameters and a model size of approximately 1 MB. Similarly, \citet{zaibi2021lenet} introduced an enhanced LeNet-5-based model that reaches 99.84\% accuracy on GTSRB with only 0.38 million trainable parameters, demonstrating that lightweight architectures can remain highly competitive on this task.
+
+Another important line of work concerns prediction reliability. \citet{guo2017calibration} showed that modern neural networks tend to be poorly calibrated and introduced Expected Calibration Error (ECE) as a practical metric for measuring the gap between confidence and actual correctness. They also showed that simple calibration methods such as temperature scaling can be effective in practice.
+
+Quantization is also highly relevant for deployment efficiency. \citet{hubara2021ptq} emphasize that post-training quantization is attractive because it avoids retraining and can operate with a small calibration set, although aggressive low-bit quantization may introduce performance degradation.
+
+Overall, prior work suggests that traffic sign recognition should not be evaluated only by classification accuracy. Lightweight modeling, calibration quality, and quantization-aware efficiency are all important for practical systems. This study builds on that perspective by jointly evaluating accuracy, ECE, model size, and inference time.
+
+\section{Method}
+
+\subsection{Dataset}
+
+All experiments are conducted on the German Traffic Sign Recognition Benchmark (GTSRB), which contains more than 50,000 images from 43 traffic sign classes. The dataset was collected from real driving sequences and includes substantial variation in scale, illumination, occlusion, and visual appearance, making it suitable for realistic classification experiments \citep{stallkamp2011gtsrb}.
+
+\subsection{Baseline Model}
+
+As an initial baseline, we use ResNet-50 with transfer learning. A pretrained backbone is adapted to the GTSRB classification task and fine-tuned on the target dataset. Although ResNet-50 is not a lightweight architecture, it serves as a reasonable starting point for the first stage of the study and makes the effect of quantization easier to observe on a relatively high-capacity model.
+
+\subsection{Evaluation Metrics}
+
+To evaluate the model from both predictive and deployment perspectives, four metrics are used.
+
+\textbf{Accuracy} is reported as the main classification metric.
+
+\textbf{Expected Calibration Error (ECE)} is used to assess calibration quality. ECE measures the mismatch between prediction confidence and empirical accuracy over confidence bins; lower values indicate better calibration \citep{guo2017calibration}.
+
+\textbf{Model size} is reported in megabytes to quantify storage cost.
+
+\textbf{Inference time} is reported in milliseconds per image to reflect deployment efficiency. All latency measurements are obtained under the same experimental setup and reported on a per-image basis.
+
+Using these metrics together allows us to analyze not only predictive performance, but also computational cost and confidence reliability.
+
+\subsection{Quantization}
+
+After training the floating-point baseline, post-training quantization is applied to obtain an INT8 version of the model. In this setting, the trained model is converted to a lower-precision representation without full retraining. This is consistent with the practical motivation of PTQ, which aims to improve deployment efficiency with limited additional calibration effort \citep{hubara2021ptq}.
+
+The quantized model is then evaluated using the same metrics as the baseline. This direct before-and-after comparison forms the main empirical analysis of the current report.
+
+\subsection{Current Scope}
+
+At this stage, the study is limited to a single architecture, namely ResNet-50, and its INT8 quantized counterpart. Lighter backbones and additional experiments are reserved for the next phase of the project.
+
+\section{Results}
+
+The floating-point ResNet-50 baseline achieved a validation accuracy of 80.90\% with an ECE of 0.1922. Its model size was 270.56 MB, and the average inference time was 121.42 ms per image.
+
+After applying INT8 post-training quantization, the model size decreased to 23.15 MB, and the average inference time dropped to 67.67 ms per image. These results indicate a substantial gain in efficiency. However, the quantized model's accuracy fell to 70.20\%, showing a clear loss in predictive performance.
+
+Interestingly, the calibration result improved after quantization. The ECE decreased from 0.1922 to 0.0967, suggesting that the quantized model's confidence scores became better aligned with actual correctness.
+
+\begin{table}[t]
+\centering
+\caption{Performance comparison before and after quantization.}
+\label{tab:results}
+\begin{tabular}{lcccc}
+\toprule
+Model & Accuracy (\%) & ECE & Size (MB) & Inference (ms/image) \\
+\midrule
+Float32 ResNet-50 & 80.90 & 0.1922 & 270.56 & 121.42 \\
+INT8 Quantized ResNet-50 & 70.20 & 0.0967 & 23.15 & 67.67 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+These findings show that post-training quantization provides substantial compression and faster inference, but introduces a noticeable loss in classification accuracy.
+
+\section{Discussion}
+
+The main finding of this first-stage study is the clear trade-off introduced by post-training quantization. On one hand, the INT8 model is substantially smaller and faster than the floating-point baseline, which supports the practical value of quantization in deployment-oriented scenarios. On the other hand, the reduction in accuracy is considerable, indicating that the current quantization setup imposes a meaningful cost in predictive performance.
+
+The calibration result is also noteworthy. The lower ECE after quantization suggests that the quantized model is less overconfident than the original model. This matters because classification accuracy alone does not tell us whether the model's confidence scores are trustworthy. A model may become less accurate overall while still producing more realistic confidence scores. In this sense, the current findings are consistent with the broader observation that confidence behavior deserves separate evaluation from raw correctness \citep{guo2017calibration}.
+
+However, the improved ECE should not be overinterpreted. Better calibration does not automatically imply a better model overall, especially when accompanied by a large drop in accuracy. Instead, the result should be read as evidence that quantization affects not only efficiency and classification performance, but also the model's confidence distribution.
+
+Another important point is that ResNet-50 is a relatively heavy baseline for a project centered on resource constraints. Prior work has already shown that compact architectures such as MicronNet and enhanced LeNet variants can achieve competitive traffic sign classification results with much smaller parameter counts \citep{wong2018micronnet,zaibi2021lenet}. Therefore, the current experiment should be interpreted as a preliminary baseline analysis rather than the final target configuration of the study.
+
+\section{Limitations}
+
+This report has several limitations.
+
+First, the current experimental scope is limited to a single architecture. Since only ResNet-50 and its INT8 version have been evaluated, the conclusions remain preliminary. This limitation will be addressed in the next stage by extending the analysis to lighter backbones such as ResNet-18, MobileNetV2, and ShuffleNetV2.
+
+Second, the baseline model is relatively large compared with the lightweight architectures typically preferred in embedded traffic sign recognition. This makes the current setup useful for initial analysis, but not yet fully aligned with the final objective of resource-aware modeling.
+
+Third, the quantization analysis is restricted to one post-training INT8 configuration. Other alternatives, such as FP16 or more advanced PTQ pipelines, have not yet been explored. As discussed by \citet{hubara2021ptq}, quantization outcomes can depend strongly on calibration strategy and optimization details.
+
+Finally, calibration assessment is currently based only on ECE. Additional tools such as reliability diagrams or post-processing calibration methods could strengthen the analysis in later stages.
+
+\section{Conclusion}
+
+This first report examined traffic sign classification on GTSRB from a resource-constrained perspective. Instead of evaluating the model only by classification accuracy, the study considered four complementary criteria: accuracy, Expected Calibration Error, model size, and inference time.
+
+The preliminary experiments show that INT8 post-training quantization leads to major reductions in model size and inference latency, but also causes a substantial drop in classification accuracy. The quantized model also achieves a lower ECE, indicating improved confidence calibration.
+
+Overall, these findings support the central motivation of the project: under resource constraints, model evaluation should be multi-dimensional. A model may become smaller, faster, and better calibrated, while still losing important predictive accuracy. In the next stage of the study, we plan to extend the experiments to lighter architectures, including ResNet-18, MobileNetV2, and ShuffleNetV2. This extension will help us better align the analysis with deployment-oriented scenarios and compare quantization behavior across models with different computational profiles.
+
+\renewcommand{\refname}{}
+\section{References}
+\vspace{-0.6em}
+\small
+\begin{thebibliography}{9}
+\bibitem[Guo et~al.(2017)Guo, Pleiss, Sun, and Weinberger]{guo2017calibration}
+Chuan Guo, Geoff Pleiss, Yu Sun, and Kilian Q. Weinberger.
+\newblock On calibration of modern neural networks.
+\newblock In \emph{Proceedings of the 34th International Conference on Machine Learning}, 2017.
+
+\bibitem[Hubara et~al.(2021)Hubara, Nahshan, Hanani, Banner, and Soudry]{hubara2021ptq}
+Itay Hubara, Yury Nahshan, Yair Hanani, Ron Banner, and Daniel Soudry.
+\newblock Accurate post training quantization with small calibration sets.
+\newblock In \emph{Proceedings of the 38th International Conference on Machine Learning}, 2021.
+
+\bibitem[Lim et~al.(2023)Lim, Lee, Lim, Ong, Alqahtani, and Ali]{lim2023review}
+Xin Roy Lim, Chin Poo Lee, Kian Ming Lim, Thian Song Ong, Ali Alqahtani, and Mohammed Ali.
+\newblock Recent advances in traffic sign recognition: Approaches and datasets.
+\newblock \emph{Sensors}, 23(10):4674, 2023.
+
+\bibitem[Stallkamp et~al.(2011)Stallkamp, Schlipsing, Salmen, and Igel]{stallkamp2011gtsrb}
+Johannes Stallkamp, Marc Schlipsing, Jan Salmen, and Christian Igel.
+\newblock The German Traffic Sign Recognition Benchmark: A multi-class classification competition.
+\newblock In \emph{Proceedings of the International Joint Conference on Neural Networks}, 2011.
+
+\bibitem[Wong et~al.(2018)Wong, Shafiee, and St. Jules]{wong2018micronnet}
+Alexander Wong, Mohammad Javad Shafiee, and Michael St. Jules.
+\newblock $\mu$Net: A highly compact deep convolutional neural network architecture for real-time embedded traffic sign classification.
+\newblock \emph{IEEE Access}, 2018.
+
+\bibitem[Zaibi et~al.(2021)Zaibi, Ladgham, and Sakly]{zaibi2021lenet}
+Ameur Zaibi, Anis Ladgham, and Anis Sakly.
+\newblock A lightweight model for traffic sign classification based on enhanced LeNet-5 network.
+\newblock \emph{Journal of Sensors}, 2021.
+
+\end{thebibliography}
+
+\end{document}
