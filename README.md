@@ -41,6 +41,7 @@ PROJECT/
 │
 ├── notebooks/
 │   └── MobileNetV2.ipynb
+│   └── ResNet50.py
 │
 ├── results/
 │   ├── int8_confusion_increase_vs_fp32.csv
@@ -76,9 +77,9 @@ The notebook assumes that the dataset folder is located at the project root.
 
 ## Implemented Experiments
 
-The current repository mainly includes the **MobileNetV2** implementation in `notebooks/MobileNetV2.ipynb`.
+The repository includes implementations for both **MobileNetV2** and **ResNet-50** experiments.
 
-The notebook covers:
+The MobileNetV2 notebook covers:
 - FP32 MobileNetV2 training
 - ROI-based preprocessing
 - INT8 post-training quantization
@@ -86,7 +87,15 @@ The notebook covers:
 - Accuracy, ECE, model size, and latency evaluation
 - Class-wise and confusion-based analysis
 
-**ResNet-50** experiments are discussed in the project report. The corresponding source files may be added separately.
+The ResNet-50 implementation covers:
+- FP32 ResNet-50 training
+- INT8 post-training quantization
+- Accuracy evaluation
+- Model size measurement
+- Inference latency measurement
+- Expected Calibration Error (ECE) calculation
+
+The detailed experimental discussion and comparison are provided in the project reports under the `report/` directory.
 
 ## How to Run
 
@@ -113,7 +122,7 @@ ml_env\Scripts\activate
 ### 3. Install required packages
 
 ```bash
-pip install numpy pandas matplotlib scikit-learn tensorflow jupyter
+pip install numpy pandas matplotlib scikit-learn tensorflow jupyter opencv-python
 ```
 
 ### 4. Prepare the dataset
@@ -136,21 +145,29 @@ dataset/
 
 The `dataset/` folder is excluded from Git tracking, so it must be added manually before running the notebook.
 
-### 5. Run the notebook
+### 5. Run the experiments
+
+For the MobileNetV2 experiments:
 
 ```bash
 jupyter notebook notebooks/MobileNetV2.ipynb
 ```
 
-Then run the notebook cells in order.
+For the ResNet-50 experiments:
 
-The notebook saves trained and converted models under:
+```bash
+python notebooks/ResNet50.py
+```
+
+Then run the notebook/script after placing the dataset under the `dataset/` directory.
+
+The experiments save trained and converted models under:
 
 ```text
 models/
 ```
 
-It also saves confusion analysis outputs under:
+They also save analysis outputs under:
 
 ```text
 results/
